@@ -164,6 +164,7 @@ with tab1:
         "not by the physics. A perfectly integrated orbit under an inverse-square force is a closed ellipse "
         "(or, for high enough velocity, an open hyperbola/parabola)."
     )
+    st.caption("💡 **Interactive Canvas:** You can click on any label in the legend below the graph (e.g., 'True Analytical Orbit' or 'Central Mass') to toggle that specific trace on and off!")
     fig_traj = go.Figure()
     fig_traj.add_trace(
         go.Scatter(
@@ -192,7 +193,7 @@ with tab1:
     fig_traj.update_layout(
         template="plotly_dark", height=650, margin=dict(l=10, r=10, t=40, b=10),
         xaxis_title="x", yaxis_title="y",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5),
     )
     fig_traj.update_yaxes(scaleanchor="x", scaleratio=1)
     st.plotly_chart(fig_traj, use_container_width=True)
@@ -224,7 +225,7 @@ with tab2:
         fig_energy.update_layout(
             template="plotly_dark", height=550, margin=dict(l=10, r=10, t=40, b=10),
             xaxis_title="Time", yaxis_title="Relative Energy Error |ΔE / E₀|",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5),
         )
         fig_energy.update_yaxes(type="log")
         st.plotly_chart(fig_energy, use_container_width=True)
@@ -253,7 +254,7 @@ with tab3:
         fig_angmom.update_layout(
             template="plotly_dark", height=550, margin=dict(l=10, r=10, t=40, b=10),
             xaxis_title="Time", yaxis_title="Relative Angular Momentum Error |ΔL / L₀|",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            legend=dict(orientation="h", yanchor="top", y=-0.15, xanchor="center", x=0.5),
         )
         fig_angmom.update_yaxes(type="log")
         st.plotly_chart(fig_angmom, use_container_width=True)
