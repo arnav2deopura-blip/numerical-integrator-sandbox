@@ -124,6 +124,8 @@ with st.sidebar:
     dt = st.slider("dt (integration step)", min_value=0.001, max_value=0.5, step=0.005, key="dt")
     st.caption(f"This will require **{int(t_total / dt):,}** integration steps per method.")
     st.markdown("---")
+    selected_methods = st.multiselect("Integrators to Display", options=["Forward Euler", "Classical RK4", "Leapfrog"], default=["Forward Euler", "Classical RK4", "Leapfrog"])
+    st.markdown("---")
     st.caption("Orbit starts at periapsis (x₀ = 1.0) with purely tangential velocity, GM = 1.")
 
 vy0 = np.sqrt(GM * (1.0 + e) / X0)
@@ -169,7 +171,17 @@ with tab1:
             line=dict(color="white", width=1)), name="Central Mass",
         )
     )
-    for method in METHODS:
+    theta = np.linspace(0, 2 * np.pi, 500)
+    r_true = a * (1.0 - e ** 2) / (1.0 + e * np.cos(theta))
+    x_true = r_true * np.cos(theta)
+    y_true = r_true * np.sin(theta)
+    fig_traj.add_trace(
+        go.Scatter(
+            x=x_true, y=y_true, mode="lines", name="True Analytical Orbit",
+            line=dict(color="#888888", width=1.5, dash="dash"),
+        )
+    )
+    for method in selected_methods:
         _, traj, _, _ = results[method]
         fig_traj.add_trace(
             go.Scatter(
@@ -200,21 +212,24 @@ with tab2:
         "a small, bounded band, because the method exactly conserves a nearby 'shadow' Hamiltonian rather than "
         "the true energy."
     )
-    fig_energy = go.Figure()
-    for method in METHODS:
-        times, _, energies, _ = results[method]
-        e0 = energies[0]
-        rel_err = np.abs((energies - e0) / e0) + 1e-16
-        fig_energy.add_trace(
-            go.Scatter(x=times, y=rel_err, mode="lines", name=method, line=dict(color=COLORS[method], width=2.2))
+    if selected_methods:
+        fig_energy = go.Figure()
+        for method in selected_methods:
+            times, _, energies, _ = results[method]
+            e0 = energies[0]
+            rel_err = np.abs((energies - e0) / e0) + 1e-16
+            fig_energy.add_trace(
+                go.Scatter(x=times, y=rel_err, mode="lines", name=method, line=dict(color=COLORS[method], width=2.2))
+            )
+        fig_energy.update_layout(
+            template="plotly_dark", height=550, margin=dict(l=10, r=10, t=40, b=10),
+            xaxis_title="Time", yaxis_title="Relative Energy Error |ΔE / E₀|",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
-    fig_energy.update_layout(
-        template="plotly_dark", height=550, margin=dict(l=10, r=10, t=40, b=10),
-        xaxis_title="Time", yaxis_title="Relative Energy Error |ΔE / E₀|",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-    )
-    fig_energy.update_yaxes(type="log")
-    st.plotly_chart(fig_energy, use_container_width=True)
+        fig_energy.update_yaxes(type="log")
+        st.plotly_chart(fig_energy, use_container_width=True)
+    else:
+        st.info("Select at least one numerical method in the sidebar to view data.")
 
 with tab3:
     st.subheader("Specific Angular Momentum Conservation")
@@ -226,21 +241,24 @@ with tab3:
         "problem. Non-symplectic algorithms have no mechanism to enforce this conservation law exactly, so "
         "their geometric limits show up here just as clearly as they do in the energy drift plot."
     )
-    fig_angmom = go.Figure()
-    for method in METHODS:
-        times, _, _, angular_momenta = results[method]
-        l0 = angular_momenta[0]
-        rel_err = np.abs((angular_momenta - l0) / l0) + 1e-16
-        fig_angmom.add_trace(
-            go.Scatter(x=times, y=rel_err, mode="lines", name=method, line=dict(color=COLORS[method], width=2.2))
+    if selected_methods:
+        fig_angmom = go.Figure()
+        for method in selected_methods:
+            times, _, _, angular_momenta = results[method]
+            l0 = angular_momenta[0]
+            rel_err = np.abs((angular_momenta - l0) / l0) + 1e-16
+            fig_angmom.add_trace(
+                go.Scatter(x=times, y=rel_err, mode="lines", name=method, line=dict(color=COLORS[method], width=2.2))
+            )
+        fig_angmom.update_layout(
+            template="plotly_dark", height=550, margin=dict(l=10, r=10, t=40, b=10),
+            xaxis_title="Time", yaxis_title="Relative Angular Momentum Error |ΔL / L₀|",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         )
-    fig_angmom.update_layout(
-        template="plotly_dark", height=550, margin=dict(l=10, r=10, t=40, b=10),
-        xaxis_title="Time", yaxis_title="Relative Angular Momentum Error |ΔL / L₀|",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-    )
-    fig_angmom.update_yaxes(type="log")
-    st.plotly_chart(fig_angmom, use_container_width=True)
+        fig_angmom.update_yaxes(type="log")
+        st.plotly_chart(fig_angmom, use_container_width=True)
+    else:
+        st.info("Select at least one numerical method in the sidebar to view data.")
 
 st.markdown("---")
 with st.expander("About the three integration methods"):
