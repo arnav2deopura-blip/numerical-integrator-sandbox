@@ -2,10 +2,13 @@ import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="The Numerical Integrator Sandbox", page_icon="🛰️", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="The Numerical Integrator Sandbox", layout="wide", initial_sidebar_state="expanded")
 
 GM = 1.0
 EPS = 1e-12
+X0 = 1.0
+Y0 = 0.0
+VX0 = 0.0
 
 def compute_derivatives(state):
     x, y, vx, vy = state
@@ -20,6 +23,10 @@ def compute_energy(state):
     r = max(np.sqrt(x * x + y * y), EPS)
     v2 = vx * vx + vy * vy
     return 0.5 * v2 - GM / r
+
+def compute_angular_momentum(state):
+    x, y, vx, vy = state
+    return x * vy - y * vx
 
 def euler_step(state, dt):
     return state + dt * compute_derivatives(state)
@@ -57,15 +64,18 @@ def run_simulation(method, x0, vy0, t_total, dt):
     state = np.array([x0, 0.0, 0.0, vy0])
     trajectory = np.zeros((n_steps + 1, 4))
     energies = np.zeros(n_steps + 1)
+    angular_momenta = np.zeros(n_steps + 1)
     trajectory[0] = state
     energies[0] = compute_energy(state)
+    angular_momenta[0] = compute_angular_momentum(state)
     step_fn = STEP_FUNCTIONS[method]
     for i in range(1, n_steps + 1):
         state = step_fn(state, dt)
         trajectory[i] = state
         energies[i] = compute_energy(state)
+        angular_momenta[i] = compute_angular_momentum(state)
     times = np.linspace(0.0, n_steps * dt, n_steps + 1)
-    return times, trajectory, energies
+    return times, trajectory, energies, angular_momenta
 
 COLORS = {"Forward Euler": "#EF553B", "Classical RK4": "#636EFA", "Leapfrog": "#00CC96"}
 METHODS = ["Forward Euler", "Classical RK4", "Leapfrog"]
@@ -73,22 +83,60 @@ METHODS = ["Forward Euler", "Classical RK4", "Leapfrog"]
 st.title("The Numerical Integrator Sandbox")
 st.markdown(
     "An interactive comparison of three numerical integration schemes applied to a classic two-body "
-    "gravitational orbit (central mass at the origin, **GM = 1**). Adjust the initial conditions and, most "
-    "importantly, the **timestep size**, to see how each method's mathematical structure shapes its accuracy "
-    "and long-term stability."
+    "gravitational orbit (central mass at the origin, **GM = 1**). Adjust the orbital **eccentricity** and, "
+    "most importantly, the **timestep size**, to see how each method's mathematical structure shapes its "
+    "accuracy and long-term stability."
 )
 
+if "e" not in st.session_state:
+    st.session_state.e = 0.0
+if "dt" not in st.session_state:
+    st.session_state.dt = 0.01
+if "t_total" not in st.session_state:
+    st.session_state.t_total = 20.0
+
 with st.sidebar:
-    st.header("Initial Conditions")
-    x0 = st.slider("Initial Position X", min_value=0.5, max_value=2.0, value=1.0, step=0.05)
-    vy0 = st.slider("Initial Velocity Y", min_value=0.3, max_value=1.5, value=1.0, step=0.05)
-    t_total = st.slider("Total Simulation Time", min_value=5.0, max_value=100.0, value=20.0, step=1.0)
+    st.subheader("Simulation Presets")
+    preset_row1 = st.columns(2)
+    preset_row2 = st.columns(2)
+    if preset_row1[0].button("Circular Orbit", width="stretch"):
+        st.session_state.e = 0.0
+        st.session_state.dt = 0.01
+        st.session_state.t_total = 20.0
+    if preset_row1[1].button("High Eccentricity", width="stretch"):
+        st.session_state.e = 0.7
+        st.session_state.dt = 0.005
+        st.session_state.t_total = 40.0
+    if preset_row2[0].button("Near Escape", width="stretch"):
+        st.session_state.e = 0.9
+        st.session_state.dt = 0.001
+        st.session_state.t_total = 60.0
+    if preset_row2[1].button("The Chaos Trigger", width="stretch"):
+        st.session_state.e = 0.5
+        st.session_state.dt = 0.2
+        st.session_state.t_total = 20.0
+    st.markdown("---")
+    st.header("Orbital Configuration")
+    e = st.slider("Orbital Eccentricity (e)", min_value=0.0, max_value=0.9, step=0.05, key="e")
+    t_total = st.slider("Total Simulation Time", min_value=5.0, max_value=100.0, step=1.0, key="t_total")
     st.markdown("---")
     st.subheader("Timestep Size (dt)")
-    dt = st.slider("dt (integration step)", min_value=0.001, max_value=0.5, value=0.01, step=0.005)
+    dt = st.slider("dt (integration step)", min_value=0.001, max_value=0.5, step=0.005, key="dt")
     st.caption(f"This will require **{int(t_total / dt):,}** integration steps per method.")
     st.markdown("---")
-    st.caption("Central mass fixed at the origin with GM = 1. Initial velocity is purely tangential (vx₀ = 0).")
+    st.caption("Orbit starts at periapsis (x₀ = 1.0) with purely tangential velocity, GM = 1.")
+
+vy0 = np.sqrt(GM * (1.0 + e) / X0)
+a = X0 / (1.0 - e)
+orbital_period = 2.0 * np.pi * np.sqrt((a ** 3) / GM)
+specific_energy = -GM / (2.0 * a)
+angular_momentum = X0 * vy0
+
+metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+metric_col1.metric("Semi-Major Axis (a)", f"{a:.3f}")
+metric_col2.metric("Orbital Period (T)", f"{orbital_period:.3f}")
+metric_col3.metric("Specific Energy (E)", f"{specific_energy:.4f}")
+metric_col4.metric("Angular Momentum (L)", f"{angular_momentum:.3f}")
 
 if dt > 0.1:
     st.warning(
@@ -102,9 +150,9 @@ if dt > 0.1:
 results = {}
 with st.spinner("Integrating orbits with all three methods..."):
     for method in METHODS:
-        results[method] = run_simulation(method, x0, vy0, t_total, dt)
+        results[method] = run_simulation(method, X0, vy0, t_total, dt)
 
-tab1, tab2 = st.tabs(["Trajectory Comparison", "Energy Drift Analysis"])
+tab1, tab2, tab3 = st.tabs(["Trajectory Comparison", "Energy Drift Analysis", "Angular Momentum Conservation"])
 
 with tab1:
     st.subheader("Orbital Trajectories")
@@ -122,7 +170,7 @@ with tab1:
         )
     )
     for method in METHODS:
-        _, traj, _ = results[method]
+        _, traj, _, _ = results[method]
         fig_traj.add_trace(
             go.Scatter(
                 x=traj[:, 0], y=traj[:, 1], mode="lines", name=method,
@@ -154,7 +202,7 @@ with tab2:
     )
     fig_energy = go.Figure()
     for method in METHODS:
-        times, _, energies = results[method]
+        times, _, energies, _ = results[method]
         e0 = energies[0]
         rel_err = np.abs((energies - e0) / e0) + 1e-16
         fig_energy.add_trace(
@@ -168,6 +216,32 @@ with tab2:
     fig_energy.update_yaxes(type="log")
     st.plotly_chart(fig_energy, use_container_width=True)
 
+with tab3:
+    st.subheader("Specific Angular Momentum Conservation")
+    st.markdown(
+        "In a perfectly isotropic central force field, torque about the central mass is identically zero at "
+        "every point, so specific angular momentum `L = x * vy - y * vx` must be an absolute constant of "
+        "motion. Any divergence from `L(0)` in the plot below is not a physical effect at all, it is a direct "
+        "signature of the numerical method's inability to respect the underlying rotational symmetry of the "
+        "problem. Non-symplectic algorithms have no mechanism to enforce this conservation law exactly, so "
+        "their geometric limits show up here just as clearly as they do in the energy drift plot."
+    )
+    fig_angmom = go.Figure()
+    for method in METHODS:
+        times, _, _, angular_momenta = results[method]
+        l0 = angular_momenta[0]
+        rel_err = np.abs((angular_momenta - l0) / l0) + 1e-16
+        fig_angmom.add_trace(
+            go.Scatter(x=times, y=rel_err, mode="lines", name=method, line=dict(color=COLORS[method], width=2.2))
+        )
+    fig_angmom.update_layout(
+        template="plotly_dark", height=550, margin=dict(l=10, r=10, t=40, b=10),
+        xaxis_title="Time", yaxis_title="Relative Angular Momentum Error |ΔL / L₀|",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    fig_angmom.update_yaxes(type="log")
+    st.plotly_chart(fig_angmom, use_container_width=True)
+
 st.markdown("---")
 with st.expander("About the three integration methods"):
     st.markdown(
@@ -176,9 +250,21 @@ with st.expander("About the three integration methods"):
         "error and lack of symplectic structure make it a poor choice for long-term orbital integration.\n\n"
         "**Classical RK4** evaluates the derivative at four stages within each step (`k1` through `k4`) and "
         "combines them with fixed weights to cancel out lower-order error terms, achieving 4th-order global "
-        "accuracy. It is far more accurate per step than Euler but is still not symplectic.\n\n"
+        "accuracy. It is far more accurate per step than Euler, yet it is fundamentally non-symplectic: its "
+        "update map does not conserve phase-space volume the way the true Hamiltonian flow does. Each step "
+        "introduces a microscopic, asymmetric truncation bias, invisible at the resolution of any single "
+        "step, but not exactly zero. Over massive simulation horizons or millions of steps, these sub-resolution "
+        "biases accumulate directionally rather than canceling out, producing the slow secular energy drift "
+        "visible in the Energy Drift tab even though RK4's short-term accuracy vastly exceeds Euler's.\n\n"
         "**Leapfrog** (kick-drift-kick / velocity Verlet) staggers velocity and position updates by a half "
         "step. Despite being only 2nd-order accurate, its symplectic structure means it exactly conserves a "
         "Hamiltonian that stays close to the true one, so orbital energy oscillates but never systematically "
         "drifts, even over extremely long simulations."
+    )
+    st.markdown(
+        "| Method | Mathematical Order | Symplectic? | Cost (Evaluations/Step) |\n"
+        "| :--- | :---: | :---: | :---: |\n"
+        "| **Forward Euler** | 1st Order | No (❌) | 1 |\n"
+        "| **Leapfrog** | 2nd Order | Yes (✅) | 2 |\n"
+        "| **Classical RK4** | 4th Order | No (❌) | 4 |"
     )
